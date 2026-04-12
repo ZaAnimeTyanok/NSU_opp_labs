@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
         int N = 1000;
         ProcessManager pm(argc, argv, N);
         
-        // pm.run_simple_test();
+        pm.run_simple_test();
         pm.run_not_simple_test();
         
     } 
