@@ -3,8 +3,6 @@
 #include <cmath>
 #include <mpi.h>
 
-using namespace std;
-
 #define EXCHANGE_AX_DATA_TAG 1
 #define STOP_SIGNAL_TAG 2
 #define CONTINUE_SIGNAL_TAG 3
@@ -17,8 +15,8 @@ private:
     int row_count;
     int start_row;
     
-    double tau = 1e-3;
-    double eps = 1e-5;
+    double tau = 1e-4;
+    double eps = 1e-4;
 
     int final_iterations = 0;
     double final_time = 0.0;
@@ -38,12 +36,14 @@ private:
     
     std::vector<double> get_local_Ax() {
         std::vector<double> local_Ax(row_count, 0.0);
+        
         for (int i = 0; i < row_count; i++) {
             int global_A_row = start_row + i;
             for (int j = 0; j < n; j++) {
-                local_Ax[i] += x_vector[j] * (1 + (int)(j == global_A_row));
+                local_Ax[i] += x_vector[j] * (1.0 + static_cast<double>(j == global_A_row));
             }
         }
+
         return local_Ax;
     }
     
@@ -72,13 +72,14 @@ private:
                     r_vector[i] = full_Ax[i] - b_vector[i];
                 }
                 
-                    double r_norm = vector_norm(r_vector);
-                
-                    if (iter % 100 == 0) {
-                        std::cout << "Iter " << iter << ", residual = " << r_norm / b_norm << std::endl;
+                double r_norm = vector_norm(r_vector);
+                double res = r_norm / b_norm;
+
+                if (iter % 1000 == 0) {
+                    std::cout << "Iter " << iter << ", residual = " << res << ", time " << MPI_Wtime() - start_time << std::endl;
                 }
                 
-                if (r_norm / b_norm < eps) {
+                if (res < eps) {
                     for (int dest = 1; dest < mpi_size; dest++) {
                         MPI_Send(NULL, 0, MPI_INT, dest, STOP_SIGNAL_TAG, MPI_COMM_WORLD);
                     }
@@ -170,18 +171,19 @@ public:
         run();
 
         if (mpi_rank == 0) {
-            std::cout << "\n========================================" << std::endl;
-            std::cout << "Converged in " << final_iterations << " iterations" << std::endl;
-            std::cout << "Time: " << final_time << " seconds" << std::endl;
-            
             double max_error = 0.0;
-            
             for (int i = 0; i < n; i++) {
                 max_error = std::max(max_error, std::fabs(x_vector[i] - 1.0));
-            
             }
 
+            std::cout << "\n========================================" << std::endl;
+            std::cout << "LAB1 V1 SIMPLE TEST" << std::endl;
+            std::cout << "========================================" << std::endl;
+            std::cout << "Process count:  " << mpi_size << std::endl;
+            std::cout << "Matrix size (N) = " << n << std::endl;
+            std::cout << "Iterations: " << final_iterations<< std::endl;
             std::cout << "Max error: " << max_error << std::endl;
+            std::cout << "Total time: " << final_time << " seconds" << std::endl;
             std::cout << "========================================" << std::endl;
         }
     }
@@ -219,23 +221,25 @@ public:
             MPI_Recv(b_vector.data(), n, MPI_DOUBLE, 0, CONTINUE_SIGNAL_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
     
-    x_vector = std::vector<double>(n, 0.0);
+        x_vector = std::vector<double>(n, 0.0);
     
-    run();
+        run();
     
-    if (mpi_rank == 0) {
-        std::cout << "\n========================================" << std::endl;
-        std::cout << "NOT SIMPLE TEST (arbitrary solution)" << std::endl;
-        std::cout << "========================================" << std::endl;
-        std::cout << "Converged in " << final_iterations << " iterations" << std::endl;
-        std::cout << "Time: " << final_time << " seconds" << std::endl;
+        if (mpi_rank == 0) {
+            std::cout << "\n========================================" << std::endl;
+            std::cout << "LAB1 V1 NOT SIMPLE TEST" << std::endl;
+            std::cout << "========================================" << std::endl;
+            std::cout << "Process count:  " << mpi_size << std::endl;
+            std::cout << "Matrix size (N) = " << n << std::endl;
+            std::cout << "Iterations: " << final_iterations<< std::endl;
         
-        double max_error = 0.0;
-            for (int i = 0; i < n; i++) {
-                max_error = std::max(max_error, std::fabs(x_vector[i] - u[i]));
-            }
-        
+            double max_error = 0.0;
+                for (int i = 0; i < n; i++) {
+                    max_error = std::max(max_error, std::fabs(x_vector[i] - u[i]));
+                }
+            
             std::cout << "Max error: " << max_error << std::endl;
+            std::cout << "Total time: " << final_time << " seconds" << std::endl;
             std::cout << "========================================" << std::endl;
         }
     }   
@@ -243,10 +247,9 @@ public:
 
 int main(int argc, char** argv) {
     try {
-        int N = 1000;
+        int N = 900;
         ProcessManager pm(argc, argv, N);
-        
-      pm.run_simple_test();
+        //pm.run_simple_test();
         pm.run_not_simple_test();
     } 
     
